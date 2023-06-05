@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Grocery List</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>Grocery List</h1>
+
+        <!-- Add product form -->
+        <div class="input-group mb-3">
+            <input type="text" id="productName" class="form-control" placeholder="Product name" required>
+            <input type="number" id="productPrice" class="form-control" placeholder="Product price" required>
+            <div class="input-group-append">
+                <button class="btn btn-primary" type="button" onclick="addProduct()">Add Product</button>
+            </div>
+        </div>
+
+        <!-- Product list -->
+        <div id="productList"></div>
+
+        <!-- Persons list -->
+        <div class="mt-4">
+            <h3>Persons</h3>
+            <div id="persons"></div>
+            <div class="mt-2">
+                <button class="btn btn-success" onclick="addPerson()">Add Person</button>
+            </div>
+        </div>
+
+        <!-- Grocery matrix -->
+        <table class="table mt-4">
+            <thead>
+                <tr>
+                    <th scope="col">Product</th>
+                    <th scope="col">Price</th>
+                    <th scope="col" v-for="person in personsList">{{ person }}</th>
+                </tr>
+            </thead>
+            <tbody id="groceryTableBody"></tbody>
+        </table>
+
+        <!-- Totals -->
+        <div class="mt-4">
+            <h5>Total Price: <span id="totalPrice"></span></h5>
+            <h5>Total per Person:</h5>
+            <div id="totalPerPerson"></div>
+        </div>
+
+        <!-- Print button -->
+        <div class="mt-4">
+            <button class="btn btn-primary" onclick="printList()">Print List</button>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+    <script>
+        let productList = [];
+        let personsList = [];
+
+        function addPerson() {
+            const personName = prompt("Enter person's name:");
+            if (personName) {
+                personsList.push(personName);
+                renderPersonsList();
+                renderGroceryMatrix();
+                calculateTotals();
+                saveDataToLocalStorage();
+            }
+        }
+
+        function removePerson(index) {
+            personsList.splice(index, 1);
+            renderPersonsList();
+            renderGroceryMatrix();
+            calculateTotals();
+            saveDataToLocalStorage();
+        }
+
+        function renderPersonsList() {
+            const personsDiv = document.getElementById("persons");
+            personsDiv.innerHTML = "";
+
+            for (let i = 0; i < personsList.length; i++) {
+                const personName = personsList[i];
+
+                const checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.name = "consumedPerson";
+                checkbox.value = personName;
+                checkbox.className = "person-checkbox";
+                checkbox.onchange = function () {
+                    renderGroceryMatrix();
+                    calculateTotals();
+                    saveDataToLocalStorage();
+                };
+
+                const label = document.createElement("label");
+                label.innerHTML = personName;
+
+                const removeButton = document.createElement("button");
+                removeButton.innerHTML = "Remove";
+                removeButton.className = "btn btn-danger btn-sm ml-2";
+                removeButton.onclick = function () {
+                    removePerson(i);
+                };
+
+                const personDiv = document.createElement("div");
+                personDiv.appendChild(checkbox);
+                personDiv.appendChild(label);
+                personDiv.appendChild(removeButton);
+                personDiv.appendChild(document.createElement("br"));
+
+                personsDiv.appendChild(personDiv);
+            }
+        }
+
+        function addProduct() {
+            const productName = document.getElementById("productName").value;
+            const productPrice = parseFloat(document.getElementById("productPrice").value.replace(",", "."));
+
+            if (productName && productPrice) {
+                const product = { name: productName, price: productPrice, consumedBy: [] };
+                productList.push(product);
+                renderProductList();
+                renderGroceryMatrix();
+                calculateTotals();
+                saveDataToLocalStorage();
+
+                document.getElementById("productName").value = "";
+                document.getElementById("productPrice").value = "";
+            }
+        }
+
+        function removeProduct(index) {
+            productList.splice(index, 1);
+            renderProductList();
+            renderGroceryMatrix();
+            calculateTotals();
+            saveDataToLocalStorage();
+        }
+
+        function renderProductList() {
+            const productListDiv = document.getElementById("productList");
+            productListDiv.innerHTML = "";
+
+            for (let i = 0; i < productList.length; i++) {
+                const product = productList[i];
+
+                const removeButton = document.createElement("button");
+                removeButton.innerHTML = "Remove";
+                removeButton.className = "btn btn-danger btn-sm ml-2";
+                removeButton.onclick = function () {
+                    removeProduct(i);
+                };
+
+                const listItem = document.createElement("li");
+                listItem.innerHTML = `${product.name} - ${product.price.toLocaleString("en-US", { style: "currency", currency: "EUR" })}`;
+                listItem.appendChild(removeButton);
+
+                productListDiv.appendChild(listItem);
+            }
+        }
+
+        function renderGroceryMatrix() {
+            const groceryTableBody = document.getElementById("groceryTableBody");
+            groceryTableBody.innerHTML = "";
+
+            for (let i = 0; i < productList.length; i++) {
+                const product = productList[i];
+
+                const row = document.createElement("tr");
+
+                const nameCell = document.createElement("td");
+                nameCell.textContent = product.name;
+                row.appendChild(nameCell);
+
+                const priceCell = document.createElement("td");
+                priceCell.textContent = product.price.toLocaleString("en-US", { style: "currency", currency: "EUR" });
+                row.appendChild(priceCell);
+
+                for (let j = 0; j < personsList.length; j++) {
+                    const person = personsList[j];
+
+                    const consumedByCell = document.createElement("td");
+                    const checkbox = document.createElement("input");
+                    checkbox.type = "checkbox";
+                    checkbox.name = "consumed";
+                    checkbox.value = person;
+                    checkbox.checked = product.consumedBy.includes(person);
+                    checkbox.onchange = function () {
+                        if (checkbox.checked) {
+                            product.consumedBy.push(person);
+                        } else {
+                            const index = product.consumedBy.indexOf(person);
+                            if (index > -1) {
+                                product.consumedBy.splice(index, 1);
+                            }
+                        }
+                        calculateTotals();
+                        saveDataToLocalStorage();
+                    };
+
+                    consumedByCell.appendChild(checkbox);
+                    row.appendChild(consumedByCell);
+                }
+
+                groceryTableBody.appendChild(row);
+            }
+        }
+
+        function calculateTotals() {
+            const totalPriceSpan = document.getElementById("totalPrice");
+            const totalPerPersonDiv = document.getElementById("totalPerPerson");
+            totalPerPersonDiv.innerHTML = "";
+
+            let totalPrice = 0;
+            const totalPerPerson = {};
+
+            for (const product of productList) {
+                const numConsumers = product.consumedBy.length;
+                const pricePerPerson = numConsumers > 0 ? product.price / numConsumers : 0;
+
+                totalPrice += product.price;
+
+                for (const person of product.consumedBy) {
+                    if (!totalPerPerson[person]) {
+                        totalPerPerson[person] = 0;
+                    }
+                    totalPerPerson[person] += pricePerPerson;
+                }
+            }
+
+            totalPriceSpan.textContent = totalPrice.toLocaleString("en-US", { style: "currency", currency: "EUR" });
+
+            for (const person in totalPerPerson) {
+                const amount = totalPerPerson[person];
+                const personTotal = document.createElement("p");
+                personTotal.textContent = `${person}: ${amount.toLocaleString("en-US", {
+                    style: "currency",
+                    currency: "EUR",
+                })}`;
+                totalPerPersonDiv.appendChild(personTotal);
+            }
+        }
+
+        function saveDataToLocalStorage() {
+            localStorage.setItem("productList", JSON.stringify(productList));
+            localStorage.setItem("personsList", JSON.stringify(personsList));
+        }
+
+        function loadDataFromLocalStorage() {
+            const productListData = localStorage.getItem("productList");
+            const personsListData = localStorage.getItem("personsList");
+
+            if (productListData) {
+                productList = JSON.parse(productListData);
+                renderProductList();
+                renderGroceryMatrix();
+                calculateTotals();
+            }
+
+            if (personsListData) {
+                personsList = JSON.parse(personsListData);
+                renderPersonsList();
+                renderGroceryMatrix();
+                calculateTotals();
+            }
+        }
+
+        function printList() {
+            const doc = new jsPDF();
+
+            doc.setFontSize(18);
+            doc.text("Grocery List", 20, 20);
+
+            doc.setFontSize(12);
+            let y = 40;
+
+            for (const product of productList) {
+                doc.text(`Product: ${product.name}`, 20, y);
+                doc.text(`Price: ${product.price.toLocaleString("en-US", { style: "currency", currency: "EUR" })}`, 20, y + 10);
+                doc.text(`Consumed By: ${product.consumedBy.join(", ")}`, 20, y + 20);
+                y += 40;
+
+                // Calculate breakdown for each person
+                const numConsumers = product.consumedBy.length;
+                const pricePerPerson = numConsumers > 0 ? product.price / numConsumers : 0;
+                for (const person of product.consumedBy) {
+                    doc.text(`${person}: ${pricePerPerson.toLocaleString("en-US", { style: "currency", currency: "EUR" })}`, 20, y);
+                    y += 10;
+                }
+            }
+
+            doc.save("grocery_list.pdf");
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            loadDataFromLocalStorage();
+        });
+    </script>
+</body>
+</html>
